@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>vue对templete中响应式数据的依赖收集</title></head>
+<body>
+<div id="app">
+  <p>姓名: <span>{{name}}</span></p>
+  <p>年龄: <span>{{age}}</span></p>
+</div>
+<script>
+  window.onload = function () { 
+    // new一个vue实例
+    let vue = new Vue(
+       {
+         el: '#app', 
+         data: {
+             name: '加载中', age: '18'
+           }
+         }
+      )
+
+    // 2s后更新页面的信息
+    setTimeout(() => {
+      // 4. 更改templete中data的值时，会促发setter
+      vue.$data.name = 'Chris Wu';
+      vue.$data.age = 20;
+    }, 2000)
+  }
+  class Vue {
+    constructor(options) {
+      this.options = options
+      this.$data = options.data
+      this.observe(options.data)
+      this.compile(document.querySelector(options.el))
+    }
+
+    observe(data) {
+      Object.keys(data).forEach(key => {
+        let observer = new Dep() 
+        let value = data[key] 
+        Object.defineProperty(data, key, {
+          get() {
+            // 3.观察者对象添加对应的dom节点
+            Dep.target && observer.add(Dep.target) 
+            return value
+          },
+          set(newValue) {
+            value = newValue
+            // 5. 属性值变化时，更新Dep依赖中所有节点
+            observer.update(newValue) 
+          }
+        })
+      })
+    }
+    compile(dom) {
+      dom.childNodes.forEach(child => {
+        // nodeType 为3时为文本节点，匹配有{{}}的节点
+        if(child.nodeType === 3 && /\{\{(.*)\}\}/.test(child.textContent)) {  
+          let key = RegExp.$1.trim()  
+          // 1. 第一次遍历时会把该节点放到Dep依赖里面去
+          Dep.target = child    
+          // 2. 将{{key}} 替换成data中对应的值，这里会触发getter
+          child.textContent = child.textContent.replace(`{{${key}}}`, this.options.data[key]) 
+          Dep.target = null
+        }
+        // 递归遍历子节点
+        if(child.childNodes.length) {
+          this.compile(child)
+        }
+      })
+    }
+  }
+  
+  // dep对象存储所有的观察者
+  class Dep { 
+    constructor() {
+      this.watcherList = []
+    }
+    // 添加watcher
+    add(node) {
+      this.watcherList.push(node)
+    }
+    // 更新watcher
+    update(value) {
+      // 6. 更新节点中的值
+      this.watcherList.forEach(node => {
+        node.textContent= value
+      })
+    }
+  }
+</script>
+</body>
+</html>
